@@ -1,4 +1,5 @@
 import openai
+import spacy
 import ffmpeg
 import tempfile
 import os
@@ -18,13 +19,24 @@ openai.api_key = st.secrets["apikey"]
 # 分割秒数
 split_time = 5 * 60
 
+# whisper調整用プロンプト
+whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb広告の代理店、ウェブ広告代理店のゲンダイエージェンシー株式会社の者です。GDNやYDAなどの運用、別途費用が発生しますが、ランディングページの作成をします。御社の取り組みも知りたいです。代理店契約。'
+
 # プロンプトテンプレート
-template = """
-You will receive a transcription of a portion of the audio of the business-to-business meeting.
+template1 = """
+# instruction
+    You are an expert writer that speaks and writes fluent japanese.
+    You will receive a transcription of a part of the audio of the business-to-business meeting.
+    Briefly summarize the contents what was discussed of the given meeting audio in 日本語.
 
-Briefly summarize the contents what was discussed of the given business meeting audio in 日本語.
-
-Since it is known that this is a business meeting, there is no need to include it in the summary.
+# constraints
+    - Please respond only in the japanese language.
+    - Do not self reference.
+    - Do not explain what you are doing.
+    - Do not miss important keywords.
+    - Do not change the meaning of the sentence.
+    - Do not use fictitious expressions or words.
+    - Since it is known that this is a business meeting, there is no need to include it in the summary.
 """
 
 # 出力先変数初期化
@@ -34,6 +46,7 @@ summary = ''
 # 入力ファイル
 input = st.sidebar.file_uploader("動画ファイルをアップロードしてください")
 
+# コンテンツ表示用コンテナ初期化
 block = st.container()
 
 # 入力ファイルが入った場合
@@ -56,98 +69,153 @@ if input is not None:
     # 尺
     duration = float(info['duration'])
 
-    # 分割処理
+    # メッセージプレースホルダ
     placeholder = block.empty()
-    placeholder.info('分割処理中...')
-    bar = block.progress(0)
-    for t in range(0, int(duration), split_time):
 
-        bar.progress(
-            int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
-
+    # 尺が5分以下の場合
+    if duration <= split_time:
+        placeholder.info('文字起こし処理中...')
+        bar = block.progress(0)
         # 出力音声ファイル名
-        output_file = f'audio_{t}.mp3'
+        output_file = f'audio.mp3'
 
-        # 分割・エンコード処理
-        stream = ffmpeg.input(input_path, ss=t, t=split_time)
+        # エンコード処理
+        stream = ffmpeg.input(input_path)
         audio = stream.audio
         audio = ffmpeg.output(audio, output_file, acodec='libmp3lame')
         process = ffmpeg.run(audio, overwrite_output=True)
+        bar.progress(50)
 
         # 文字起こし処理（Whisper）
         audio_file = open(output_file, "rb")
         transcript = openai.Audio.transcribe(
-            "whisper-1", audio_file, prompt="こんにちは。今日は、いいお天気ですね。私は、Web広告の代理店、いわゆるWeb広告代理店の者です。GDNやYDAなどの運用や、ランディングページの作成をします。御社の取り組みも知りたいです。")
+            "whisper-1", audio_file, prompt=whisperprompt)
 
-        text += transcript.text
+        text = transcript.text
+        summary = text
+        bar.progress(100)
 
-        # 一次要約処理（GPT）
-        completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
-            {
-                "role": "system",
-                "content": template
-            },
-            {
-                "role": "user",
-                "content": transcript.text
-            }
-        ])
+    # 尺が5分超えの場合
+    else:
+        # 分割処理
+        placeholder.info('分割・文字起こし処理中...')
+        bar = block.progress(0)
+        for t in range(0, int(duration), split_time):
 
-        # 要約結果
-        response_text = completion.choices[0].message.content
-        summary += response_text
+            bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100)-5)
 
-    placeholder.success('分割完了')
+            # 出力音声ファイル名
+            output_file = f'audio_{t}.mp3'
+
+            # 分割・エンコード処理
+            stream = ffmpeg.input(input_path, ss=t, t=split_time)
+            audio = stream.audio
+            audio = ffmpeg.output(audio, output_file, acodec='libmp3lame')
+            process = ffmpeg.run(audio, overwrite_output=True)
+            bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100)-2)
+
+            # 文字起こし処理（Whisper）
+            audio_file = open(output_file, "rb")
+            transcript = openai.Audio.transcribe("whisper-1", audio_file, prompt=whisperprompt, temperature=0.1)
+
+            text += transcript.text
+
+            # 一次要約処理（GPT）
+            completion = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                temperature=0.1,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": template1
+                    },
+                    {
+                        "role": "user",
+                        "content": transcript.text
+                    }
+                ]
+            )
+
+            # 要約結果
+            response_text = completion.choices[0].message.content
+            summary += response_text
+            bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
+
+        placeholder.success('分割・文字起こし完了')
+
+    nlp = spacy.load('ja_ginza')
+    doc = nlp(text)
+
+    pritty = ''
+    for sent in doc.sents:
+        pritty += f'{sent.text}\n'
+
     expander1 = block.expander("中間出力")
-    expander1.write(text)
+    expander1.write(pritty)
 
     placeholder.info('要約中...')
     bar.progress(0)
-    bar.progress(50)
 
     # 本要約
 
     # プロンプトテンプレート
-    template = """
-   We will give you a summary statement of the business-to-business audio.
+    template2 = """
+    # instruction
+        You are an expert writer that speaks and writes fluent japanese.
+        You will receive a summary statement of the business-to-business meeting.
+        Please make a further summary in Markdown format based on all the given text in 日本語.
 
-   Please make a further summary in Markdown format based on all the given summary what was discussed text in 日本語.
+    # constraints
+        summarize the Summary in the following format.
 
-   summarize the Summary in the following format.
+        ----------------------------------------------
+        ## 課題点
+            #### h4 headings（複数可）
+                - コンテンツ（複数可）
+        ## 求めること
+            #### h4 headings（複数可）
+                - コンテンツ（複数可）
+        ## 提案内容
+            #### h4 headings（複数可）
+                - コンテンツ（複数可）
+        ## ネクストアクション
+            #### h4 headings（複数可）
+                - コンテンツ（複数可）
+        ## その他
+            #### h4 headings（複数可）
+                - コンテンツ（複数可）
+        ----------------------------------------------
 
-   # 課題点
-   ## h2 headings（複数可）
-   - コンテンツ（複数可）
-   # 求めること
-   ## h2 headings（複数可）
-   - コンテンツ（複数可）
-   # 提案内容
-   ## h2 headings（複数可）
-   - コンテンツ（複数可）
-   # ネクストアクション
-   ## h2 headings（複数可）
-   - コンテンツ（複数可）
-   # その他
-   ## h2 headings（複数可）
-   - コンテンツ（複数可）
+        - You are an expert writer that speaks and writes fluent japanese.
+        - Please respond only in the japanese language.
+        - Do not self reference.
+        - Do not explain what you are doing.
+        - use h4 headings and list to make the hierarchical structure.
+        - Please describe each item in detail.
+        - Avoid writing the same thing over and over again that means the same thing.
+        - Do not miss important keywords.
+        - Do not change the meaning of the sentence.
+        - Do not use fictitious expressions or words.
+        - Since it is known that this is a business meeting, there is no need to include it in the summary.
+    """
 
-   use h2 headings and list to make the hierarchical structure.
-   Please describe each item in detail.
-   Avoid writing the same thing over and over again that means the same thing.
-   Since it is known that this is a business meeting, there is no need to include it in the summary.
-   """
+    bar.progress(50)
 
     # 要約処理（GPT）
-    completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
-        {
-            "role": "system",
-            "content": template
-        },
-        {
-            "role": "user",
-            "content": summary
-        }
-    ])
+    completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        temperature=0.1,
+        messages=[
+            {
+                "role": "system",
+                "content": template2
+            },
+            {
+                "role": "user",
+                "content": summary
+            }
+        ]
+    )
 
     # 要約結果
     response_text = completion.choices[0].message.content
