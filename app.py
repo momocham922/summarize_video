@@ -8,9 +8,6 @@ from io import BytesIO
 # APIキー
 openai.api_key = st.secrets["apikey"]
 
-# 音声チャンクの保存先
-output_dir = './audio/'
-
 # 分割秒数
 split_time = 5 * 60
 
@@ -58,7 +55,7 @@ if input is not None:
       bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
 
       # 出力音声ファイル名
-      output_file = f'{output_dir}/audio_{t}.mp3'
+      output_file = f'audio_{t}.mp3'
 
       # 分割・エンコード処理
       stream = ffmpeg.input(input_path, ss=t, t=split_time)
