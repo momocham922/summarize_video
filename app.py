@@ -5,6 +5,13 @@ import os
 import streamlit as st
 from io import BytesIO
 
+st.set_page_config(
+    page_title="オート議事録",
+    page_icon=image,
+    layout="wide",
+    initial_sidebar_state="auto",
+)
+
 # APIキー
 openai.api_key = st.secrets["apikey"]
 
@@ -25,77 +32,81 @@ text = ''
 summary = ''
 
 # 入力ファイル
-input = st.file_uploader("動画ファイルをアップロードしてください")
+input = st.sidebar.file_uploader("動画ファイルをアップロードしてください")
+
+left, right = st.columns(2)
 
 # 入力ファイルが入った場合
 if input is not None:
 
-   # ファイルの表示
-   st.video(input)
-   file_bytes = input.read()
-   file_bytesio = BytesIO(file_bytes)
+    # ファイルの表示
+    left.video(input)
+    file_bytes = input.read()
+    file_bytesio = BytesIO(file_bytes)
 
-   # 一時ファイルに保存する
-   with tempfile.NamedTemporaryFile(delete=False) as f:
-      f.write(file_bytes)
-      input_path = f.name
+    # 一時ファイルに保存する
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(file_bytes)
+        input_path = f.name
 
-   # メディア情報取得
-   probe = ffmpeg.probe(input_path)
-   info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    # メディア情報取得
+    probe = ffmpeg.probe(input_path)
+    info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
 
-   # 尺
-   duration = float(info['duration'])
+    # 尺
+    duration = float(info['duration'])
 
-   # 分割処理
-   st.write('分割処理中...')
-   bar = st.progress(0)
-   for t in range(0, int(duration), split_time):
+    # 分割処理
+    leftbox = left.empty()
+    leftbox.write('分割処理中...')
+    bar = left.progress(0)
+    for t in range(0, int(duration), split_time):
 
-      bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
+        bar.progress(
+            int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
 
-      # 出力音声ファイル名
-      output_file = f'audio_{t}.mp3'
+        # 出力音声ファイル名
+        output_file = f'audio_{t}.mp3'
 
-      # 分割・エンコード処理
-      stream = ffmpeg.input(input_path, ss=t, t=split_time)
-      audio = stream.audio
-      audio = ffmpeg.output(audio, output_file, acodec='libmp3lame')
-      process = ffmpeg.run(audio, overwrite_output=True)
+        # 分割・エンコード処理
+        stream = ffmpeg.input(input_path, ss=t, t=split_time)
+        audio = stream.audio
+        audio = ffmpeg.output(audio, output_file, acodec='libmp3lame')
+        process = ffmpeg.run(audio, overwrite_output=True)
 
-      # 文字起こし処理（Whisper）
-      audio_file = open(output_file, "rb")
-      transcript = openai.Audio.transcribe(
-         "whisper-1", audio_file, prompt="こんにちは。今日は、いいお天気ですね。私は、Web広告の代理店、いわゆるWeb広告代理店の者です。GDNやYDAなどの運用や、ランディングページの作成をします。御社の取り組みも知りたいです。")
+        # 文字起こし処理（Whisper）
+        audio_file = open(output_file, "rb")
+        transcript = openai.Audio.transcribe(
+            "whisper-1", audio_file, prompt="こんにちは。今日は、いいお天気ですね。私は、Web広告の代理店、いわゆるWeb広告代理店の者です。GDNやYDAなどの運用や、ランディングページの作成をします。御社の取り組みも知りたいです。")
 
-      text += transcript.text
+        text += transcript.text
 
-      # 一次要約処理（GPT）
-      completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
-         {
-               "role": "system",
-               "content": template
-         },
-         {
-               "role": "user",
-               "content": transcript.text
-         }
-      ])
+        # 一次要約処理（GPT）
+        completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
+            {
+                "role": "system",
+                "content": template
+            },
+            {
+                "role": "user",
+                "content": transcript.text
+            }
+        ])
 
-      st.write(f'中間出力: \n{text}')
+        # 要約結果
+        response_text = completion.choices[0].message.content
+        summary += response_text
 
-      # 要約結果
-      response_text = completion.choices[0].message.content
-      summary += response_text
+    leftbox.write(f'中間出力: {text}')
+    rightbox = right.empty()
+    rightbox.write('要約中...')
+    bar = right.progress(0)
+    bar.progress(50)
 
-   st.write('要約中...')
-   bar = st.progress(0)
-   bar.progress(50)
+    # 本要約
 
-   # 本要約
-
-   # プロンプトテンプレート
-   template = """
+    # プロンプトテンプレート
+    template = """
    We will give you a summary statement of the business-to-business audio.
 
    Please make a further summary in Markdown format based on all the given summary what was discussed text in 日本語.
@@ -124,25 +135,25 @@ if input is not None:
    Since it is known that this is a business meeting, there is no need to include it in the summary.
    """
 
-   # 要約処理（GPT）
-   completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
-      {
-         "role": "system",
-         "content": template
-      },
-      {
-         "role": "user",
-         "content": summary
-      }
-   ])
+    # 要約処理（GPT）
+    completion = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=[
+        {
+            "role": "system",
+            "content": template
+        },
+        {
+            "role": "user",
+            "content": summary
+        }
+    ])
 
-   # 要約結果
-   response_text = completion.choices[0].message.content
+    # 要約結果
+    response_text = completion.choices[0].message.content
 
-   bar.progress(100)
+    bar.progress(100)
 
-   # マークダウン出力
-   st.markdown(response_text)
+    # マークダウン出力
+    right.markdown(response_text)
 
-   # 一時ファイルを削除する
-   os.remove(input_path)
+    # 一時ファイルを削除する
+    os.remove(input_path)
