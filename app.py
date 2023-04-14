@@ -82,6 +82,8 @@ if input is not None:
          }
       ])
 
+      st.write(f'中間出力: \n{text}')
+
       # 要約結果
       response_text = completion.choices[0].message.content
       summary += response_text
