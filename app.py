@@ -6,7 +6,7 @@ import streamlit as st
 from io import BytesIO
 
 # APIキー
-openai.api_key = "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"
+openai.api_key = st.secrets["apikey"]
 
 # 音声チャンクの保存先
 output_dir = './audio/'
@@ -32,6 +32,7 @@ input = st.file_uploader("動画ファイルをアップロードしてくださ
 
 # 入力ファイルが入った場合
 if input is not None:
+
    # ファイルの表示
    st.video(input)
    file_bytes = input.read()
@@ -50,9 +51,11 @@ if input is not None:
    duration = float(info['duration'])
 
    # 分割処理
+   st.write('分割処理中...')
+   bar = st.progress(0)
    for t in range(0, int(duration), split_time):
 
-      st.write(f'分割処理中: {int(t/split_time)+1}/{int(duration/split_time)+1}')
+      bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
 
       # 出力音声ファイル名
       output_file = f'{output_dir}/audio_{t}.mp3'
@@ -87,6 +90,8 @@ if input is not None:
       summary += response_text
 
    st.write('要約中...')
+   bar = st.progress(0)
+   bar.progress(50)
 
    # 本要約
 
@@ -134,6 +139,8 @@ if input is not None:
 
    # 要約結果
    response_text = completion.choices[0].message.content
+
+   bar.progress(100)
 
    # マークダウン出力
    st.markdown(response_text)
