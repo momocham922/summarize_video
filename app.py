@@ -7,7 +7,7 @@ from io import BytesIO
 
 st.set_page_config(
     page_title="オート議事録",
-    page_icon=image,
+    page_icon='comment_edit.ico',
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -34,13 +34,13 @@ summary = ''
 # 入力ファイル
 input = st.sidebar.file_uploader("動画ファイルをアップロードしてください")
 
-left, right = st.columns(2)
+block = st.container()
 
 # 入力ファイルが入った場合
 if input is not None:
 
     # ファイルの表示
-    left.video(input)
+    block.video(input)
     file_bytes = input.read()
     file_bytesio = BytesIO(file_bytes)
 
@@ -57,9 +57,9 @@ if input is not None:
     duration = float(info['duration'])
 
     # 分割処理
-    leftbox = left.empty()
-    leftbox.write('分割処理中...')
-    bar = left.progress(0)
+    placeholder = block.empty()
+    placeholder.info('分割処理中...')
+    bar = block.progress(0)
     for t in range(0, int(duration), split_time):
 
         bar.progress(
@@ -97,10 +97,12 @@ if input is not None:
         response_text = completion.choices[0].message.content
         summary += response_text
 
-    leftbox.write(f'中間出力: {text}')
-    rightbox = right.empty()
-    rightbox.write('要約中...')
-    bar = right.progress(0)
+    placeholder.success('分割完了')
+    expander1 = block.expander("中間出力")
+    expander1.write(text)
+
+    placeholder.info('要約中...')
+    bar.progress(0)
     bar.progress(50)
 
     # 本要約
@@ -151,9 +153,10 @@ if input is not None:
     response_text = completion.choices[0].message.content
 
     bar.progress(100)
-
+    placeholder.success('要約完了')
     # マークダウン出力
-    right.markdown(response_text)
+    expander2 = block.expander("要約")
+    expander2.markdown(response_text)
 
     # 一時ファイルを削除する
     os.remove(input_path)
