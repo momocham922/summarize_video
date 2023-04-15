@@ -88,8 +88,7 @@ if input is not None:
 
         # 文字起こし処理（Whisper）
         audio_file = open(output_file, "rb")
-        transcript = openai.Audio.transcribe(
-            "whisper-1", audio_file, prompt=whisperprompt)
+        transcript = openai.Audio.transcribe("whisper-1", audio_file, language="ja", prompt=whisperprompt, temperature=0)
 
         text = transcript.text
         summary = text
@@ -116,7 +115,7 @@ if input is not None:
 
             # 文字起こし処理（Whisper）
             audio_file = open(output_file, "rb")
-            transcript = openai.Audio.transcribe("whisper-1", audio_file, prompt=whisperprompt, temperature=0.1)
+            transcript = openai.Audio.transcribe("whisper-1", audio_file, language="ja", prompt=whisperprompt, temperature=0)
 
             text += transcript.text
 
