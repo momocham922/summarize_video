@@ -17,7 +17,7 @@ st.set_page_config(
 openai.api_key = st.secrets["apikey"]
 
 # 分割秒数
-split_time = 12 * 60
+split_time = 10 * 60
 
 # whisper調整用プロンプト
 whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb広告の代理店、ウェブ広告代理店のゲンダイエージェンシー株式会社の者です。GDNやYDAなどの運用、別途費用が発生しますが、ランディングページの作成などもします。御社の取り組みも知りたいです。代理店契約しますか？'
