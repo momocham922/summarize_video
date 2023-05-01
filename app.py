@@ -5,12 +5,22 @@ import tempfile
 import os
 import streamlit as st
 from io import BytesIO
+import uuid
+import pymysql.cursors
 
 st.set_page_config(
     page_title="オート議事録",
     page_icon='comment_edit.ico',
     layout="wide",
     initial_sidebar_state="auto",
+)
+
+conn = pymysql.connect(
+    host=st.secrets["host"],
+    user=st.secrets["user"],
+    password=st.secrets["password"],
+    database=st.secrets["database"],
+    cursorclass=pymysql.cursors.DictCursor
 )
 
 # APIキー
@@ -193,6 +203,15 @@ if input is not None:
     doc = nlp(summary)
     for sent in doc.sents:
         expander2.write(f' - {sent.text}')
+
+    with conn:
+        with conn.cursor() as cursor:
+            # レコードを挿入
+            sql = "INSERT INTO `summary` (`id`, `title`, `transcript`, `summary`, `comment`) VALUES (%s, %s)"
+            cursor.execute(sql, (uuid.uuid4().hex, 'hongehonge',text_withtime,summary,'none'))
+
+        # コミットしてトランザクション実行
+        conn.commit()
 
     # 一時ファイルを削除する
     os.remove(input_path)
