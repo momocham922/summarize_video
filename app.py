@@ -27,7 +27,7 @@ conn = pymysql.connect(
 openai.api_key = st.secrets["apikey"]
 
 # 分割秒数
-split_time = 10 * 60
+split_time = 20 * 60
 
 # whisper調整用プロンプト
 whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb広告の代理店、ウェブ広告代理店のゲンダイエージェンシー株式会社の者です。GDNやYDAなどの運用、別途費用が発生しますが、ランディングページの作成などもします。御社の取り組みも知りたいです。代理店契約しますか？'
@@ -42,6 +42,7 @@ template1 = """
 
 # constraints
     - Please list only a summary.
+    - Please summarize at least 10 or more.
     - Please respond only in the japanese language.
     - Please do not self reference.
     - Please do not explain what you are doing.
@@ -85,7 +86,7 @@ if input is not None:
     # メッセージプレースホルダ
     placeholder = block.empty()
 
-    # 尺が12分以下の場合
+    # 尺が20分以下の場合
     if duration <= split_time:
         placeholder.info('処理中...')
         bar = block.progress(0)
@@ -103,6 +104,7 @@ if input is not None:
         audio_file = open(output_file, "rb")
         transcript = openai.Audio.transcribe("whisper-1", audio_file, language="ja", prompt=whisperprompt,
                                              temperature=0, response_format="verbose_json")
+        text=transcript.text
 
         for segment in transcript.segments:
             start_m, start_s = divmod(int(segment.start), 60)
@@ -115,25 +117,25 @@ if input is not None:
 
             text_withtime += f'[{start} - {end}]: {segment.text.encode().decode("utf-8")}\n'
 
-        # 要約処理（GPT）
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": template1
-                },
-                {
-                    "role": "user",
-                    "content": transcript.text
-                }
-            ]
-        )
+        # # 要約処理（GPT）
+        # completion = openai.ChatCompletion.create(
+        #     model="gpt-4",
+        #     temperature=0,
+        #     messages=[
+        #         {
+        #             "role": "system",
+        #             "content": template1
+        #         },
+        #         {
+        #             "role": "user",
+        #             "content": transcript.text
+        #         }
+        #     ]
+        # )
 
-        # 要約結果
-        summary = completion.choices[0].message.content
-        bar.progress(100)
+        # # 要約結果
+        # summary = completion.choices[0].message.content
+        # bar.progress(100)
 
     # 尺が5分超えの場合
     else:
@@ -173,25 +175,45 @@ if input is not None:
 
             text += transcript.text
 
-            # 要約処理（GPT）
-            completion = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                temperature=0,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": template1
-                    },
-                    {
-                        "role": "user",
-                        "content": transcript.text
-                    }
-                ]
-            )
+            # # 要約処理（GPT）
+            # completion = openai.ChatCompletion.create(
+            #     model="gpt-3.5-turbo",
+            #     temperature=0,
+            #     messages=[
+            #         {
+            #             "role": "system",
+            #             "content": template1
+            #         },
+            #         {
+            #             "role": "user",
+            #             "content": transcript.text
+            #         }
+            #     ]
+            # )
 
-            # 要約結果
-            summary += completion.choices[0].message.content
-            bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
+            # # 要約結果
+            # summary += completion.choices[0].message.content
+            # bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
+
+    # 要約処理（GPT）
+    completion = openai.ChatCompletion.create(
+        model="gpt-4",
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": template1
+            },
+            {
+                "role": "user",
+                "content": transcript.text
+            }
+        ]
+    )
+
+    # 要約結果
+    summary = completion.choices[0].message.content
+    bar.progress(100)
 
     # 文字起こし出力
     expander1 = block.expander("文字起こし")
@@ -201,18 +223,22 @@ if input is not None:
     expander2 = block.expander("要約")
     nlp = spacy.load('ja_ginza')
     doc = nlp(summary)
+    doc_export = ''
+    id = uuid.uuid4().hex
     for sent in doc.sents:
         expander2.write(f' - {sent.text}')
+        doc_export += f' - {sent.text}\n'
 
     with conn:
         with conn.cursor() as cursor:
             # レコードを挿入
-            sql = "INSERT INTO `summary` (`id`, `title`, `transcript`, `summary`, `comment`) VALUES (%s, %s)"
-            cursor.execute(sql, (uuid.uuid4().hex, 'hongehonge',text_withtime,summary,'none'))
+            sql = "INSERT INTO summary (id, title, transcript, summary, comment) VALUES (%s, %s, %s, %s, %s)"
+            cursor.execute(sql, (id, input.name, text_withtime, doc_export, 'なし'))
 
         # コミットしてトランザクション実行
         conn.commit()
-
+    link = f'[アーカイブリンク](http://34.145.40.138/archive?id={id})'
+    block.markdown(link, unsafe_allow_html=True)
     # 一時ファイルを削除する
     os.remove(input_path)
     placeholder.success('処理完了')
