@@ -41,8 +41,7 @@ template1 = """
     Briefly summarize the contents what was discussed of the given meeting audio in 日本語.
 
 # constraints
-    - Please list only a summary.
-    - Please summarize at least 10 or more.
+    - Please list only a summary at least 10 or more.
     - Please respond only in the japanese language.
     - Please do not self reference.
     - Please do not explain what you are doing.
