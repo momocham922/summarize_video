@@ -9,7 +9,7 @@ import uuid
 import pymysql.cursors
 
 st.set_page_config(
-    page_title="オート議事録",
+    page_title="オート議事録（仮）",
     page_icon='comment_edit.ico',
     layout="wide",
     initial_sidebar_state="auto",
