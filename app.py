@@ -36,9 +36,9 @@ whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb
 template1 = """
 # instruction
     You are an expert writer that speaks and writes fluent japanese.
-    You have a Descriptive writing style.
-    You will receive a transcription of a part of the audio of the business meeting.
-    Briefly summarize the contents what was discussed of the given meeting audio in 日本語.
+    You will receive a transcription audio of meeting.
+    Summarize the contents what was discussed of the given meeting audio in 日本語.
+    Be sure to follow the restrictions below when summarizing.
 
 # constraints
     - Please list only a summary at least 10 or more.
@@ -236,7 +236,7 @@ if input is not None:
 
         # コミットしてトランザクション実行
         conn.commit()
-    link = f'[アーカイブリンク](http://34.145.40.138/archive?id={id})'
+    link = f'[アーカイブリンク](http://34.145.40.138/archive/{id})'
     block.markdown(link, unsafe_allow_html=True)
     # 一時ファイルを削除する
     os.remove(input_path)
