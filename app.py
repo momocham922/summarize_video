@@ -38,17 +38,19 @@ template1 = """
     You are an expert writer that speaks and writes fluent japanese.
     You will receive a transcription audio of meeting.
     Summarize the contents what was discussed of the given meeting audio in 日本語.
-    Be sure to follow the restrictions below when summarizing.
+    Be sure to follow the constraints below when summarizing.
 
 # constraints
-    - Please list only a summary at least 10 or more.
+    - Please list only a summary at least 15 or more.
     - Please respond only in the japanese language.
+    - Please be as detailed as possible in your summary.
     - Please do not self reference.
     - Please do not explain what you are doing.
     - Please not miss important keywords.
     - Please do not change the meaning of the sentence.
     - Please do not use fictitious expressions or words.
     - Please do not preface your summary like "At the meeting -".
+    - Bulletins do not need to be numbered.
 """
 
 # 出力先変数初期化
@@ -236,7 +238,7 @@ if input is not None:
 
         # コミットしてトランザクション実行
         conn.commit()
-    link = f'[アーカイブリンク](http://34.145.40.138/archive/{id})'
+    link = f'[アーカイブリンク](http://34.145.40.138/archives/{id})'
     block.markdown(link, unsafe_allow_html=True)
     # 一時ファイルを削除する
     os.remove(input_path)
