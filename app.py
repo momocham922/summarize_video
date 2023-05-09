@@ -225,7 +225,7 @@ if input is not None:
             cursor.close()
         # コミットしてトランザクション実行
         conn.commit()
-        conn.close()
+
     link = f'[アーカイブリンク](http://34.145.40.138/archives/{id})'
     block.markdown(link, unsafe_allow_html=True)
     # 一時ファイルを削除する
