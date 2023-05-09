@@ -8,6 +8,7 @@ from io import BytesIO
 import uuid
 import pymysql.cursors
 
+
 st.set_page_config(
     page_title="オート議事録（仮）",
     page_icon='comment_edit.ico',
@@ -27,7 +28,7 @@ conn = pymysql.connect(
 openai.api_key = st.secrets["apikey"]
 
 # 分割秒数
-split_time = 22 * 60
+split_time = 20 * 60
 
 # whisper調整用プロンプト
 whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb広告の代理店、ウェブ広告代理店のゲンダイエージェンシー株式会社の者です。GDNやYDAなどの運用、別途費用が発生しますが、ランディングページの作成などもします。御社の取り組みも知りたいです。代理店契約しますか？'
@@ -221,9 +222,10 @@ if input is not None:
             # レコードを挿入
             sql = "INSERT INTO summary (id, title, transcript, summary, comment) VALUES (%s, %s, %s, %s, %s)"
             cursor.execute(sql, (id, input.name, text_withtime, summary, 'なし'))
-
+            cursor.close()
         # コミットしてトランザクション実行
         conn.commit()
+        conn.close()
     link = f'[アーカイブリンク](http://34.145.40.138/archives/{id})'
     block.markdown(link, unsafe_allow_html=True)
     # 一時ファイルを削除する
