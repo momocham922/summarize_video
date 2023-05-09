@@ -27,30 +27,33 @@ conn = pymysql.connect(
 openai.api_key = st.secrets["apikey"]
 
 # 分割秒数
-split_time = 20 * 60
+split_time = 22 * 60
 
 # whisper調整用プロンプト
 whisperprompt = 'こんにちは。今日はいいお天気ですね。私はWeb広告の代理店、ウェブ広告代理店のゲンダイエージェンシー株式会社の者です。GDNやYDAなどの運用、別途費用が発生しますが、ランディングページの作成などもします。御社の取り組みも知りたいです。代理店契約しますか？'
 
 # プロンプトテンプレート
 template1 = """
-# instruction
-    You are an expert writer that speaks and writes fluent japanese.
-    You will receive a transcription audio of meeting.
-    Summarize the contents what was discussed of the given meeting audio in 日本語.
-    Be sure to follow the constraints below when summarizing.
+# 命令
+    あなたは日本語を流暢に話し、書くことができる極めて優秀な文章ライターです。
+    今から、ある打ち合わせの音声を文章に書き起こしたものをお渡しします。
+    あなたは、与えられた書き起こしに基づき、話された内容を要約する必要があります。
+    なお、要約する際には以下の制約条件を必ず守るようお願いします。
 
-# constraints
-    - Please list only a summary at least 15 or more.
-    - Please respond only in the japanese language.
-    - Please be as detailed as possible in your summary.
-    - Please do not self reference.
-    - Please do not explain what you are doing.
-    - Please not miss important keywords.
-    - Please do not change the meaning of the sentence.
-    - Please do not use fictitious expressions or words.
-    - Please do not preface your summary like "At the meeting -".
-    - Bulletins do not need to be numbered.
+# 制約条件
+    - 箇条書き形式の要約のみを出力し、他の事は書かないでください。
+    - 適切な改行を入れ、読みやすくするようお願いします。
+    - 要約はそれぞれ短い文章で説明された箇条書き形式とし、言語は日本語のみを使用してください。
+    - 主語と述語がいずれも欠けないよう、注意して説明をしてください。
+    - 体言止めはなるべく避け、意味の通る自然な文章で記述して頂くようお願いします。
+    - 自己紹介は必要ありません。
+    - 自分のやっていることを説明する必要もありません。
+    - 重要なキーワードを見落とさないように注意してください。
+    - 数字や日付といった情報は特に重要です。
+    - 文章の意味を変更することは避けてください。
+    - 架空の表現や存在しない単語は使用しないでください。
+    - 重複する内容は複数回書かないようにしてください。
+    - 「この会議では～」のような前置きやあとがきは不要です。箇条書きの要約のみを出力してください。
 """
 
 # 出力先変数初期化
@@ -118,25 +121,25 @@ if input is not None:
 
             text_withtime += f'[{start} - {end}]: {segment.text.encode().decode("utf-8")}\n'
 
-        # # 要約処理（GPT）
-        # completion = openai.ChatCompletion.create(
-        #     model="gpt-4",
-        #     temperature=0,
-        #     messages=[
-        #         {
-        #             "role": "system",
-        #             "content": template1
-        #         },
-        #         {
-        #             "role": "user",
-        #             "content": transcript.text
-        #         }
-        #     ]
-        # )
+        # 要約処理（GPT）
+        completion = openai.ChatCompletion.create(
+            model="gpt-4",
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": template1
+                },
+                {
+                    "role": "user",
+                    "content": transcript.text
+                }
+            ]
+        )
 
-        # # 要約結果
-        # summary = completion.choices[0].message.content
-        # bar.progress(100)
+        # 要約結果
+        summary = completion.choices[0].message.content
+        bar.progress(100)
 
     # 尺が5分超えの場合
     else:
@@ -176,44 +179,26 @@ if input is not None:
 
             text += transcript.text
 
-            # # 要約処理（GPT）
-            # completion = openai.ChatCompletion.create(
-            #     model="gpt-3.5-turbo",
-            #     temperature=0,
-            #     messages=[
-            #         {
-            #             "role": "system",
-            #             "content": template1
-            #         },
-            #         {
-            #             "role": "user",
-            #             "content": transcript.text
-            #         }
-            #     ]
-            # )
+            # 要約処理（GPT）
+            completion = openai.ChatCompletion.create(
+                model="gpt-4",
+                temperature=0,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": template1
+                    },
+                    {
+                        "role": "user",
+                        "content": transcript.text
+                    }
+                ]
+            )
 
-            # # 要約結果
-            # summary += completion.choices[0].message.content
-            # bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
+            # 要約結果
+            summary += f'{completion.choices[0].message.content}\n'
+            bar.progress(int(((int(t/split_time)+1)/(int(duration/split_time)+1))*100))
 
-    # 要約処理（GPT）
-    completion = openai.ChatCompletion.create(
-        model="gpt-4",
-        temperature=0,
-        messages=[
-            {
-                "role": "system",
-                "content": template1
-            },
-            {
-                "role": "user",
-                "content": transcript.text
-            }
-        ]
-    )
-
-    # 要約結果
-    summary = completion.choices[0].message.content
     bar.progress(100)
 
     # 文字起こし出力
@@ -222,19 +207,20 @@ if input is not None:
 
     # 要約出力
     expander2 = block.expander("要約")
-    nlp = spacy.load('ja_ginza')
-    doc = nlp(summary)
-    doc_export = ''
+    expander2.markdown(summary)
     id = uuid.uuid4().hex
-    for sent in doc.sents:
-        expander2.write(f' - {sent.text}')
-        doc_export += f' - {sent.text}\n'
+    # nlp = spacy.load('ja_ginza')
+    # doc = nlp(summary)
+    # doc_export = ''
+    # for sent in doc.sents:
+    #     expander2.write(f' - {sent.text}')
+    #     doc_export += f' - {sent.text}\n'
 
     with conn:
         with conn.cursor() as cursor:
             # レコードを挿入
             sql = "INSERT INTO summary (id, title, transcript, summary, comment) VALUES (%s, %s, %s, %s, %s)"
-            cursor.execute(sql, (id, input.name, text_withtime, doc_export, 'なし'))
+            cursor.execute(sql, (id, input.name, text_withtime, summary, 'なし'))
 
         # コミットしてトランザクション実行
         conn.commit()
