@@ -64,6 +64,8 @@ summary = ''
 
 # 入力ファイル
 input = st.sidebar.file_uploader("動画ファイルをアップロードしてください")
+archive = f'[アーカイブ](http://34.145.40.138/archives)'
+st.sidebar.markdown(archive, unsafe_allow_html=True)
 
 # コンテンツ表示用コンテナ初期化
 block = st.container()
